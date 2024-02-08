@@ -17,7 +17,6 @@ def primer3_design(gene_id, sequence):
             'SEQUENCE_INCLUDED_REGION': [0, len(sequence)]
         },
         global_args={
-            # From primer3 manual:
             'PRIMER_NUM_RETURN': 10000,
             'PRIMER_OPT_SIZE': 20,
             'PRIMER_PICK_INTERNAL_OLIGO': 1,
@@ -39,39 +38,10 @@ def primer3_design(gene_id, sequence):
             'PRIMER_PAIR_MAX_COMPL_ANY': 8,
             'PRIMER_PAIR_MAX_COMPL_END': 3,
             'PRIMER_PRODUCT_SIZE_RANGE': [1000, 3000]
-            # From the p3_settings Tony and Dominik were using:
-            # 'PRIMER_NUM_RETURN': 10000,
-            # 'PRIMER_THERMODYNAMIC_OLIGO_ALIGNMENT': 1,
-            # 'PRIMER_MAX_SELF_ANY_TH': 45.00,
-            # 'PRIMER_PAIR_MAX_COMPL_ANY_TH': 45.00,
-            # 'PRIMER_MAX_SELF_END_TH': 35.00,
-            # 'PRIMER_PAIR_MAX_COMPL_END_TH': 35.00,
-            # 'PRIMER_MAX_HAIRPIN_TH': 24.0,
-            # 'PRIMER_MAX_END_STABILITY': 9.0,
-            # 'PRIMER_MAX_TEMPLATE_MISPRIMING': 12.00,
-            # 'PRIMER_MAX_TEMPLATE_MISPRIMING_TH': 40.00,
-            # 'PRIMER_PAIR_MAX_TEMPLATE_MISPRIMING': 24.00,
-            # 'PRIMER_PAIR_MAX_TEMPLATE_MISPRIMING_TH': 70.00,
-            # 'PRIMER_MAX_POLY_X': 4,
-            # 'PRIMER_MIN_SIZE': 15,
-            # 'PRIMER_MAX_SIZE': 30,
-            # 'PRIMER_MIN_GC': 30.0,
-            # 'PRIMER_INTERNAL_OPT_GC_PERCENT': 50,
-            # 'PRIMER_MAX_GC': 70,
-            # 'PRIMER_GC_CLAMP': 1,
-            # 'PRIMER_MIN_TM': 58,
-            # 'PRIMER_MAX_TM': 62,
-            # 'PRIMER_PAIR_MAX_DIFF_TM': 2,
-            # 'PRIMER_SALT_DIVALENT': 2.0,
-            # 'PRIMER_DNTP_CONC': 0.8
         }
     )
 
     return primer3_result
-
-# Used to check if the primer pair amplifies on the host genome by BLASTing against
-# the host genome -- VERY computationally expensive
-# I'll try and implement the ipcress methods Tony was using to find mismatches instead
 
 def search_mismatch(primer, sequence, max_mismatch=4):
     """
@@ -94,14 +64,13 @@ def search_mismatch(primer, sequence, max_mismatch=4):
 
 def check_host(primer, host_genome, checked_primers):
     host_genome = str(next(SeqIO.parse(host_genome, "fasta")).seq)
-    primer_rc = str(Seq(primer).reverse_complement())
     primer_c = str(Seq(primer).complement())
     
-    if primer_rc in checked_primers:
+    if primer_c in checked_primers:
         return True
     
-    if not search_mismatch(primer_rc, host_genome) or not search_mismatch(primer, host_genome):
-        checked_primers.add(primer_rc)
+    if not search_mismatch(primer, host_genome):
+        checked_primers.add(primer_c)
         return True
     
     return False
@@ -116,7 +85,7 @@ def check_ref_isols(primer, checked_primers, modified_sequence):
     primer_rc = str(Seq(primer).reverse_complement())
 
     # Check for matches in the modified sequence
-    if not search_mismatch(primer, modified_sequence): #or not search_mismatch(primer_rc, modified_sequence):
+    if not search_mismatch(primer, modified_sequence):
         checked_primers.add(primer)
         return True
 
@@ -157,19 +126,6 @@ def modify_sequence(ref_fnas, gene_hits):
 def find_sseqid_hits(all_blast_results, primer_seqs, gene_id):
     # Will need an array here to save all the hits from the different sseqids
     hits_info = []
-    # for primer_seq in primer_seqs:
-    #     primer_rc = str(Seq(primer_seq).reverse_complement())
-    #     sstart, send = None, None
-    
-        # for qseqid, hits in all_blast_results.items():
-        #     if qseqid == gene_id:
-        #         for hit in hits:
-        #             if primer_seq in hit["sseq"]:
-        #                 sstart, send = int(hit["sstart"]), int(hit["send"])
-        #             elif primer_rc in hit["sseq"]:
-        #                 sstart, send = int(hit["send"]), int(hit["sstart"])
-        #         hits_info.append((hit["sseqid"], sstart, send))
-        
     for qseqid, hits in all_blast_results.items():
         if qseqid == gene_id:
             for hit in hits:
@@ -239,14 +195,11 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
         
         primer_pairs.clear()
         for i in range(primer3_result['PRIMER_PAIR_NUM_RETURNED']):
-            # primer_left_seq = primer3_result[f'PRIMER_LEFT_{i}_SEQUENCE']
-            # primer_right_seq = primer3_result[f'PRIMER_RIGHT_{i}_SEQUENCE']
             primer_left_pos = primer3_result[f'PRIMER_LEFT_{i}'][0]
             primer_right_pos = primer3_result[f'PRIMER_RIGHT_{i}'][0]
             if primer_left_pos > padding and primer_right_pos < len(sequence) - padding:
                 continue
             seqlen_amplifying = primer_right_pos - primer_left_pos
-            # distance_from_padding = abs(primer_left_pos - padding) + abs((len(sequence) - padding) - primer_right_pos)
             primer_pairs.append((seqlen_amplifying, i))
 
         # Ok, now sorting by distance from the padding
@@ -262,7 +215,6 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             # the primer hits amplify, then get that sseqid, sstart and send to check against
             # the reference isolates, but skip those regions
             # I think it's faster to check the isolates first and then the host (takes ~5 mins/seq)
-            # sseqid, sstart, send = find_sseqid_hits(all_blast_results, [primer_left_seq, primer_right_seq], gene_id)
             hits_info = find_sseqid_hits(all_blast_results, [primer_left_seq, primer_right_seq], gene_id)
 
             if not check_ref_isols(primer_left_seq, checked_primers, modified_sequence):
