@@ -31,7 +31,7 @@ The workflow begins by considering the gene names inside p[g/s]t_genes.txt.
 ### BLAST
 > Process: BlastSearch
 
-Here, we do a simple BLAST search, of the extracted genes against all the reference isolates[^1].
+Here, we do a simple BLAST search of the extracted genes against all the reference isolates[^1].
 
 ### Find Conserved Sites
 > Process: FindConservedSites
