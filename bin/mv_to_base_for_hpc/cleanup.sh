@@ -1,7 +1,7 @@
 #!/bin/bash
 
-rm -rf pgt_tmp
-rm -rf pst_tmp
+rm -rf pgt-tmp
+rm -rf pst-tmp
 
 find data/* -type f -name wait* 2>/dev/null | while read file
 do
