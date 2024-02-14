@@ -4,7 +4,26 @@
 [![Generic badge](https://img.shields.io/badge/Requires-clustalw-<COLOR>.svg)](https://anaconda.org/bioconda/clustalw)
 [![Generic badge](https://img.shields.io/badge/Requires-BLAST+-<COLOR>.svg)](https://anaconda.org/bioconda/blast)
 
-## Information
+
+- [Running the pipeline](#running-the-pipeline)  
+- [Documentation](#documentation)  
+- [Still to come](#still-to-come)  
+
+## Running the pipeline
+
+When working on the local machine, just run:
+```
+./main.nf
+```
+> Or, `./main.nf -resume`
+
+When working on the HPC, for parallelisation of the primer design, move the files in `bin/mv_to_base_for_hpc/` to the base directory, and run:
+```
+sbatch submit-main.nf
+```
+> `cleanup.sh` should be able to concatenate files after the pipeline finishes, and remove unnecessary files, but haven't tested yet.
+
+## Documentation
 
 The pipeline currently works on Pgt210 and Pst104e annotated genes. In a future implementation this will be updated to also consider PgtCRL75, although not actively working to update this.
 There are 4 main processes in this workflow, outlined below.
@@ -60,7 +79,7 @@ In order to filter out these primers and find the best hits for each of the gene
 > [!CAUTION]
 > This pipeline is still under development and may be prone to unforeseen bugs. Treat with care.
 
-### Still to come
+## Still to come
 - [ ] Some of the genes we're interested in, go above the 3 kbp threshold we have inexplicitly applied here. In a future update we need to handle genes whose lengths are >3.5 kbp with multiple overlapping primer pairs.
 - [ ] Add option to handle Pgt genes from CRL75.
 - [ ] Streamline installation for users of Mac and Linux.
