@@ -22,11 +22,10 @@ The workflow begins by considering the gene names inside p[g/s]t_genes.txt.
     - The reference isolate is sorted and the gene extracted from the location specified in the annotation.
 
 2. Padding the gene:
-   - If the size of the gene is less than 1,500 bp, we add a 500 bp padding on either ends.
-   - If it's more than 1,500 bp, we add 250 bp padding.
+   - Add 500 bp padding regardless of gene size.
 
 3. Verifying diversity:
-   - We do a quick search to see if the sequence is repeated anywhere else. If yes, we add 500 bp padding, to the already padded gene, and search again.
+   - We do a quick search to see if the sequence is repeated anywhere else. If yes, we add 500 bp padding to the already padded gene, and search again.
   
 ### BLAST
 > Process: BlastSearch
@@ -39,21 +38,21 @@ Here, we do a simple BLAST search of the extracted genes against all the referen
 Using the BLAST outputs from the previous process, here we filter the results for each of the reference isolates,
 discounting insignificant hits, using the following conditions:
 1. If pident (% of identical positions) is 100%, or
-2. If pident >= 94 and the length of the sequence >= 1000, then
-3. Drop the rest of the hits for that isolate[^2].
+2. If pident >= 93 and the length of the sequence >= 1000, then
+3. Check if there are any other hits from the BLAST search under the same sseqid, if there are and if they come from the same gene, then concatenate them in one sequence, with hyphens between the gap of the two hits.
 
-Following the filtering, the regions that were present in the BLAST results of all the isolates, are concatinated in a fasta file, with SNPs in the sequence replaced with hyphens.
+Following the filtering, the regions that were present in the BLAST results of all the isolates are concatinated in a fasta file, with SNPs in the sequence replaced with hyphens.
 
 ### Designing Primers
 > Process: DesignPrimers
 
 Using the conserved fasta files created in the previous step, here we use Primer3 to generate 10,000 primer pairs for each of the genes.
-> The optimal conditions are pretty much the same as the defaults[^3], with certain changes, such as the length of the product being in the range of 1,000 - 3,500 bp.
+> The optimal conditions are pretty much the same as the defaults[^2], with certain changes, such as the length of the product being in the range of 1,000 - 3,000 bp.
 
 We need each of our primer pairs to only amplify one gene, and work across all the reference isolates. We also need to ensure that the primer pair doesn't amplify any region in the host genome.
 In order to filter out these primers and find the best hits for each of the genes, the following steps are applied:
 1. First, the primer pairs are sorted with respect to how close they are to the actual gene sequence (i.e. without padding). At the moment, we are not considering any primers that go into the sequence.
-2. In order to check for regions the _forward_ primer may align with, we search the length of the combined reference isolates, with a moving window, for any region that is similar to the primer, by at least 4 mismatches (i.e. if a region has 4 SNPs or less, compared to the primer sequence). This primer is therefore disregarded, and the next closest to the actual sequence is checked.
+2. In order to check for regions the _forward_ primer and its reverse complement may align with, we search the length of the combined reference isolates with a moving window, for any region that is similar to the primer by at least 4 mismatches (i.e. if a region has 4 SNPs or less, compared to the primer sequence). This primer is therefore disregarded, and the next closest to the actual sequence is checked.
 3. Obviously, this condition would always return a hit, given we have the gene sequence in the fasta files of the reference isolates. So, here we also check the blast results again, filtered as discussed in the previous process, and we obtain the sseqid (subject sequence ID -- i.e. reference isolate scaffold ID), start and end positions of the hits. These regions are replaced by ambiguities (N), so during the mismatch search these regions are not checked.
 4. The same principle of checking for mismatches, is also applied for the host genome.
 5. The valid genes are thus saved to csv files.
@@ -96,5 +95,4 @@ In order to filter out these primers and find the best hits for each of the gene
 
 [^1]: Pgt reference isolates: GCA_903797515.1_Puccinia_graminis_f._sp._tritici_UK-01, GCA_008522505.1_Pgt_210, GCA_008520325.1_Pgt_Ug99, GCA_002762355.2_KSU_Pgt_99KS76A_2.0, GCA_000149925.1_ASM14992v1.  
 Pst reference isolates: GCA_025869495.1_ASM2586949v1, GCA_025169555.1_ASM2516955v1, GCA_011750755.1_ASM1175075v1, GCA_025169535.1_ASM2516953v1, GCA_021901695.1_Pst134E36_v1_pri, pst104e.
-[^2]: May need to update the logic here, so that we consider multiple hits from the same scaffold, as long as the distance between the smallest start and highest end, doesn't exceed the length of the gene.
-[^3]: [Primer3 Manual](https://primer3.org/manual.html)
+[^2]: [Primer3 Manual](https://primer3.org/manual.html)
