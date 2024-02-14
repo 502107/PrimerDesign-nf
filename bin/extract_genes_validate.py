@@ -28,10 +28,7 @@ def extract_genes(ref_fasta, ref_annotation, gene_list, output_dir, padding=500,
             # pairs for the same gene, if the sequence is huge ...
             
             # Resetting the padding for each gene
-            if 1500 <= end - start:
-                current_padding = 250
-            else:
-                current_padding = padding
+            current_padding = padding
                 
             while not unique and current_padding <= max_padding:
                 padded_seq = pad_sequence(sequences[gene_id], start, end, current_padding)
