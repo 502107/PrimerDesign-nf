@@ -1,12 +1,12 @@
 #!/pythonloc
-import primer3
 import os
+import re
 import sys
-from extract_genes_validate import find_gene
-from conserved_sites import read_blast
+import primer3
 from Bio import SeqIO
 from Bio.Seq import Seq
-import re
+from extract_genes_validate import find_gene
+from conserved_sites import read_blast
 
 
 def primer3_design(gene_id, sequence):
@@ -64,13 +64,13 @@ def search_mismatch(primer, sequence, max_mismatch=4):
 
 def check_host(primer, host_genome, checked_primers):
     host_genome = str(next(SeqIO.parse(host_genome, "fasta")).seq)
-    primer_c = str(Seq(primer).complement())
+    primer_rc = str(Seq(primer).reverse_complement())
     
-    if primer_c in checked_primers:
+    if primer_rc in checked_primers:
         return True
     
-    if not search_mismatch(primer, host_genome):
-        checked_primers.add(primer_c)
+    if not search_mismatch(primer, host_genome) or not search_mismatch(primer_rc, host_genome):
+        checked_primers.add(primer_rc)
         return True
     
     return False
@@ -81,11 +81,10 @@ def check_ref_isols(primer, checked_primers, modified_sequence):
     if primer in checked_primers:
         return True
 
-    primer_c = str(Seq(primer).complement())
     primer_rc = str(Seq(primer).reverse_complement())
-
+    
     # Check for matches in the modified sequence
-    if not search_mismatch(primer, modified_sequence):
+    if not search_mismatch(primer, modified_sequence) or not search_mismatch(primer_rc, modified_sequence):
         checked_primers.add(primer)
         return True
 
@@ -94,16 +93,17 @@ def check_ref_isols(primer, checked_primers, modified_sequence):
 def extract_gene_hits(all_blast_results, gene_id):
     gene_hits = {}
     
-    for qseqid, hits in all_blast_results.items():
+    for qseqid, hit_lists in all_blast_results.items():
         if qseqid == gene_id:
-            for hit in hits:
-                sseqid = hit["sseqid"]
-                if sseqid not in gene_hits:
-                    gene_hits[sseqid] = []
-                gene_hits[sseqid].append((int(hit["sstart"]), int(hit["send"])))
+            for hits in hit_lists:
+                for hit in hits:
+                    sseqid = hit["sseqid"]
+                    if sseqid not in gene_hits:
+                        gene_hits[sseqid] = []
+                    gene_hits[sseqid].append((int(hit["sstart"]), int(hit["send"])))
             
     return gene_hits
-    
+
 def modify_sequence(ref_fnas, gene_hits):
     modified_sequence = ""
     
@@ -118,24 +118,6 @@ def modify_sequence(ref_fnas, gene_hits):
                 modified_sequence += str(record.seq)
         
     return modified_sequence
-
-# Now I need to separate the blast results based on the sseqid
-# and then figure out the position of the blast hits based on
-# sstart and send.
-
-def find_sseqid_hits(all_blast_results, primer_seqs, gene_id):
-    # Will need an array here to save all the hits from the different sseqids
-    hits_info = []
-    for qseqid, hits in all_blast_results.items():
-        if qseqid == gene_id:
-            for hit in hits:
-                for primer_seq in primer_seqs:
-                    primer_rc = str(Seq(primer_seq).reverse_complement())
-                    if primer_seq in hit["sseq"] or primer_rc in hit["sseq"]:
-                        sstart, send = int(hit["sstart"]), int(hit["send"])
-                        hits_info.append((hit["sseqid"], sstart, send))
-        
-    return hits_info
 
 def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, genes_file):
     valid_primers = []
@@ -164,17 +146,18 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
         for record in SeqIO.parse(f, "fasta"):
             sequences[record.id] = str(record.seq).replace('-', 'N')
     
-    # Get padding from gene extraction
-    with open(genes_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('>'):
-                gene_id = line.split(' ')[0][1:]
+    # Get padding from gene extraction -- nevermind, this is not necessary
+    # anymore since we check during the extraction of the genes every 500bp for diversity
+    # with open(genes_file, 'r') as f:
+        # for line in f:
+            # line = line.strip()
+            # if line.startswith('>'):
+                # gene_id = line.split(' ')[0][1:]
                 
-                padding_match = re.search(r'\(padding=(\d+)\)', line)
-                if padding_match:
-                    padding = int(padding_match.group(1))
-                    padding_info[gene_id] = padding 
+                # padding_match = re.search(r'\(padding=(\d+)\)', line)
+                # if padding_match:
+                    # padding = int(padding_match.group(1))
+                    # padding_info[gene_id] = padding 
            
     for gene_id, sequence in sequences.items():
         gene_hits = extract_gene_hits(all_blast_results, gene_id)
@@ -187,22 +170,24 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             
         sseqid, sstart, send = gene_info
         
-        padding = padding_info[gene_id]
+        # padding = padding_info[gene_id]
+        padding = 500
         
-        primer3_result = primer3_design(gene_id, sequence)
-        # To find the best_hit (i.e. the primer pair that covers the region as close to the
-        # actual gene as possible, without the padding, I'll be sorting by closest distance)
+        # Replacing the gene sequence with Ns to avoid creating of primer pairs for the internal regions (+/- 100bp from the ends)
+        new_sequence = ""
+        sequence = sequence[:(padding - 100)] + "N"*((len(sequence) - padding + 100) - (padding - 100)) + sequence[(len(sequence) - (padding - 100)):]
+        new_sequence += sequence
+        
+        primer3_result = primer3_design(gene_id, new_sequence)
         
         primer_pairs.clear()
+        # To find the best_hit (i.e. the primer pair that covers the region as close to the
+        # actual gene as possible, without the padding, we're sorting by closest distance)
         for i in range(primer3_result['PRIMER_PAIR_NUM_RETURNED']):
             primer_left_pos = primer3_result[f'PRIMER_LEFT_{i}'][0]
             primer_right_pos = primer3_result[f'PRIMER_RIGHT_{i}'][0]
-            if primer_left_pos > padding and primer_right_pos < len(sequence) - padding:
-                continue
             seqlen_amplifying = primer_right_pos - primer_left_pos
             primer_pairs.append((seqlen_amplifying, i))
-
-        # Ok, now sorting by distance from the padding
         primer_pairs.sort(key=lambda x: x[0])
         
         for dist, i in primer_pairs:
@@ -215,7 +200,6 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             # the primer hits amplify, then get that sseqid, sstart and send to check against
             # the reference isolates, but skip those regions
             # I think it's faster to check the isolates first and then the host (takes ~5 mins/seq)
-            hits_info = find_sseqid_hits(all_blast_results, [primer_left_seq, primer_right_seq], gene_id)
 
             if not check_ref_isols(primer_left_seq, checked_primers, modified_sequence):
                 # Checking if the primer pair amplifies on the host genome
@@ -263,7 +247,7 @@ def main():
     host_genome = sys.argv[4]
     blast_out = sys.argv[5]
     ref_fnas = sys.argv[6]
-    genes_file = sys.argv[7]
+    genes_file = sys.argv[7] # Don't need it
     output_file = sys.argv[8]
     
     
