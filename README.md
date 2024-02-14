@@ -21,7 +21,7 @@ When working on the HPC, for parallelisation of the primer design, move the file
 ```
 sbatch submit-main.nf
 ```
-> `cleanup.sh` should be able to concatenate files after the pipeline finishes, and remove unnecessary files, but haven't tested yet.
+> `cleanup.sh` should be able to concatenate files after the pipeline finishes, and remove unnecessary files.
 
 ## Documentation
 
