@@ -1,3 +1,4 @@
+#!/bin/bash
 rust=$1
 conserved_sites=$2
 basedir=$3
