@@ -156,15 +156,14 @@ process DesignPrimers {
     def isol_gff = "${baseDir}/assets/refs"
     def conserved_dir = "${baseDir}/data/conserved_sites"
     def blast_out = "${baseDir}/data/blast_results/"
-    def pgt_genes = "${baseDir}/data/genes/pgt_genes.fna"
-    def pst_genes = "${baseDir}/data/genes/pst_genes.fna"
+    def direction = "forward"    
     """
     if [[ "${rust}" == "pgt" ]]; then
         bash ${baseDir}/bin/hpc/0-gettmp.sh $rust $conserved_dir/pgt_conserved_sites.fna ${baseDir}
-        sbatch ${baseDir}/bin/hpc/1-parallel.sh $rust $isol_gff/pgt210 $host $pgt_genes $blast_out $pgt_all ${baseDir}/data/primers/pgt ${baseDir}
+        sbatch ${baseDir}/bin/hpc/1-parallel.sh $rust $isol_gff/pgt210 $host $direction $blast_out $pgt_all ${baseDir}/data/primers/pgt ${baseDir}
     elif [[ "${rust}" == "pst" ]]; then
         bash ${baseDir}/bin/hpc/0-gettmp.sh $rust $conserved_dir/pst_conserved_sites.fna ${baseDir}
-        sbatch ${baseDir}/bin/hpc/1-parallel.sh $rust $isol_gff/pst104 $host $pst_genes $blast_out $pst_all ${baseDir}/data/primers/pst ${baseDir}
+        sbatch ${baseDir}/bin/hpc/1-parallel.sh $rust $isol_gff/pst104 $host $direction $blast_out $pst_all ${baseDir}/data/primers/pst ${baseDir}
     else
         touch data/primers/wait_primers.csv
     fi
@@ -183,4 +182,3 @@ process CleanUp {
     rm -f $waitings
     """
 }
-
