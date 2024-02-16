@@ -159,13 +159,12 @@ process DesignPrimers {
     def isol_gff = "${baseDir}/assets/refs"
     def conserved_dir = "${baseDir}/data/conserved_sites"
     def blast_out = "${baseDir}/data/blast_results/"
-    def pgt_genes = "${baseDir}/data/genes/pgt_genes.fna"
-    def pst_genes = "${baseDir}/data/genes/pst_genes.fna"
+    def direction = "forward"
     """
     if [[ "${rust}" == "pgt" ]]; then
-        design_primers.py $rust $isol_gff/pgt210 $conserved_dir/${rust}_conserved_sites.fna $host $blast_out $pgt_all $pgt_genes ${rust}_primers.csv
+        design_primers.py $rust $isol_gff/pgt210 $conserved_dir/${rust}_conserved_sites.fna $host $blast_out $pgt_all ${rust}_primers.csv $direction
     elif [[ "${rust}" == "pst" ]]; then
-        design_primers.py $rust $isol_gff/pst104 $conserved_dir/${rust}_conserved_sites.fna $host $blast_out $pst_all $pst_genes ${rust}_primers.csv
+        design_primers.py $rust $isol_gff/pst104 $conserved_dir/${rust}_conserved_sites.fna $host $blast_out $pst_all ${rust}_primers.csv $direction
     else
         touch wait_primers.csv
     fi
