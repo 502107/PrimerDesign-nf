@@ -43,50 +43,64 @@ def primer3_design(gene_id, sequence):
 
     return primer3_result
 
-def search_mismatch(primer, sequence, max_mismatch=4):
+def search_mismatch(primer, sequence, max_mismatch=4, forward=True):
     """
-    Return True if the primer is diverse enough
+    Return True if the primer is diverse enough ( at least 1 snp in the last 3bp )
 
     """
     primer_len, seq_len = len(primer), len(sequence)
-
     assert seq_len >= primer_len, 'primer is larger than the sequence'
 
     if primer in sequence: # exact match bad primer
         return False
 
     for i in range(seq_len - primer_len + 1):
-        mm = sum(1 for a, b in zip(primer, sequence[i:i+primer_len]) if a != b)
-        if mm < max_mismatch: # found a 4-snp window
-            return False           
+        segment = sequence[i:i+primer_len]
+        mm = sum(1 for a, b in zip(primer, segment) if a != b)
+        if mm < max_mismatch:
+            if forward:
+                last_mm = sum(1 for a, b in zip(primer[-3:], segment[-3:]) if a!=b) # found 1 snp window
+            else:
+                last_mm = sum(1 for a, b in zip(primer[:3], segment[:3]) if a!=b)
+            if last_mm > 0:
+                return True
+            else:
+                return False
+            
     return True
 
-
-def check_host(primer, host_genome, checked_primers):
+def check_host(primer, host_genome, checked_primers, forward=True):
     host_genome = str(next(SeqIO.parse(host_genome, "fasta")).seq)
     primer_rc = str(Seq(primer).reverse_complement())
     
     if primer_rc in checked_primers:
         return True
-    
-    if not search_mismatch(primer, host_genome) or not search_mismatch(primer_rc, host_genome):
-        checked_primers.add(primer_rc)
-        return True
+    if forward:
+        if not search_mismatch(primer, host_genome): # or not search_mismatch(primer_rc, host_genome):
+            checked_primers.add(primer_rc)
+            return True
+    else:
+        if not search_mismatch(primer_rc, host_genome, forward=False):
+            checked_primers.add(primer_rc)
+            return True
     
     return False
 
-def check_ref_isols(primer, checked_primers, modified_sequence):
+def check_ref_isols(primer, checked_primers, modified_sequence, forward=True):
     # Use the modified sequence from design_primers
+    primer_rc = str(Seq(primer).reverse_complement())
 
     if primer in checked_primers:
         return True
-
-    primer_rc = str(Seq(primer).reverse_complement())
-    
-    # Check for matches in the modified sequence
-    if not search_mismatch(primer, modified_sequence) or not search_mismatch(primer_rc, modified_sequence):
-        checked_primers.add(primer)
-        return True
+    if forward:
+        # Check for matches in the modified sequence
+        if not search_mismatch(primer, modified_sequence): # or not search_mismatch(primer_rc, modified_sequence):
+            checked_primers.add(primer)
+            return True
+    else:
+        if not search_mismatch(primer_rc, modified_sequence, forward=False): # or not search_mismatch(primer_rc, modified_sequence):
+            checked_primers.add(primer)
+            return True
 
     return False
 
@@ -119,7 +133,7 @@ def modify_sequence(ref_fnas, gene_hits):
         
     return modified_sequence
 
-def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, genes_file):
+def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, forward=True):
     valid_primers = []
     sequences = {}
     primer_pairs = []
@@ -145,19 +159,6 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
     with open(conserved_sites) as f:
         for record in SeqIO.parse(f, "fasta"):
             sequences[record.id] = str(record.seq).replace('-', 'N')
-    
-    # Get padding from gene extraction -- nevermind, this is not necessary
-    # anymore since we check during the extraction of the genes every 500bp for diversity
-    # with open(genes_file, 'r') as f:
-        # for line in f:
-            # line = line.strip()
-            # if line.startswith('>'):
-                # gene_id = line.split(' ')[0][1:]
-                
-                # padding_match = re.search(r'\(padding=(\d+)\)', line)
-                # if padding_match:
-                    # padding = int(padding_match.group(1))
-                    # padding_info[gene_id] = padding 
            
     for gene_id, sequence in sequences.items():
         gene_hits = extract_gene_hits(all_blast_results, gene_id)
@@ -170,7 +171,6 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             
         sseqid, sstart, send = gene_info
         
-        # padding = padding_info[gene_id]
         padding = 500
         
         # Replacing the gene sequence with Ns to avoid creating of primer pairs for the internal regions (+/- 100bp from the ends)
@@ -200,25 +200,45 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             # the primer hits amplify, then get that sseqid, sstart and send to check against
             # the reference isolates, but skip those regions
             # I think it's faster to check the isolates first and then the host (takes ~5 mins/seq)
+            if forward:
+                if not check_ref_isols(primer_left_seq, checked_primers, modified_sequence):
+                    # Checking if the primer pair amplifies on the host genome
+                    if not check_host(primer_left_seq, host_genome, checked_primers):
+                        valid_primers.append({
+                            'GeneID': gene_id,
+                            'PrimerPair': i+1,
+                            'PrimerSeq_F': primer_left_seq,
+                            'PrimerLoc_F': primer_left_pos,
+                            'PrimerSeq_R': primer_right_seq,
+                            'PrimerLoc_R': primer_right_pos,
+                            'GeneLength_no_padding': len(sequence) - 2*padding,
+                            'GeneLength_with_padding': len(sequence),
+                            'Primer_coverage': primer_right_pos - primer_left_pos
+                        })
+                        valid_gene = True
+                        break
 
-            if not check_ref_isols(primer_left_seq, checked_primers, modified_sequence):
-                # Checking if the primer pair amplifies on the host genome
-                if not check_host(primer_left_seq, host_genome, checked_primers):
-                    valid_primers.append({
-                        'GeneID': gene_id,
-                        'PrimerPair': i+1,
-                        'PrimerSeq_F': primer_left_seq,
-                        'PrimerLoc_F': primer_left_pos,
-                        'PrimerSeq_R': primer_right_seq,
-                        'PrimerLoc_R': primer_right_pos,
-                        'GeneLength_no_padding': len(sequence) - 2*padding,
-                        'GeneLength_with_padding': len(sequence),
-                        'Primer_coverage': primer_right_pos - primer_left_pos
-                    })
-                    valid_gene = True
-                    break
+            else:
+                if not check_ref_isols(primer_right_seq, checked_primers, modified_sequence, forward=False):
+                    # Checking if the primer pair amplifies on the host genome
+                    if not check_host(primer_right_seq, host_genome, checked_primers, forward=False):
+                        valid_primers.append({
+                            'GeneID': gene_id,
+                            'PrimerPair': i+1,
+                            'PrimerSeq_F': primer_left_seq,
+                            'PrimerLoc_F': primer_left_pos,
+                            'PrimerSeq_R': primer_right_seq,
+                            'PrimerLoc_R': primer_right_pos,
+                            'GeneLength_no_padding': len(sequence) - 2*padding,
+                            'GeneLength_with_padding': len(sequence),
+                            'Primer_coverage': primer_right_pos - primer_left_pos
+                        })
+                        valid_gene = True
+                        break
+                    
         if not valid_gene:
             failed_genes.append(gene_id)
+
     # If no valid primers are identified then just fail the gene
     for gene_id in failed_genes:
         valid_primers.append({
@@ -232,13 +252,12 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             'GeneLength_with_padding': None,
             'Primer_coverage': None
         })
-
     return valid_primers
 
 def main():
     
     if len(sys.argv) != 9:
-        print("Usage: design_primers.py <rust> <ref_dir> <conserved_sites.fasta> <host_genome.fasta> <blast_output_dir> <rust_all.fna> <genes_fna> <output_file.csv>")
+        print("Usage: design_primers.py <rust> <ref_dir> <conserved_sites.fasta> <host_genome.fasta> <blast_output_dir> <rust_all.fna> <output_file.csv> <forward/reverse>")
         sys.exit(1)
 
     rust = sys.argv[1]
@@ -247,9 +266,13 @@ def main():
     host_genome = sys.argv[4]
     blast_out = sys.argv[5]
     ref_fnas = sys.argv[6]
-    genes_file = sys.argv[7] # Don't need it
-    output_file = sys.argv[8]
+    output_file = sys.argv[7]
+    direction = sys.argv[8]
     
+    if direction == "forward":
+        direction = True
+    elif direction == "reverse":
+        direction = False
     
     # This gets all the gff files in the directory (although there should only be one)
     gff_files = [os.path.join(ref_dir, file) for file in os.listdir(ref_dir) if file.endswith(".gff") and os.path.isfile(os.path.join(ref_dir, file))]
@@ -259,7 +282,7 @@ def main():
     else:
         raise FileNotFoundError("No .gff file found in the specified directory")
 
-    valid_primers = design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, genes_file)
+    valid_primers = design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, forward=direction)
         
     
     with open(output_file, 'w') as csvfile:
