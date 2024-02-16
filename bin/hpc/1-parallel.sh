@@ -9,7 +9,7 @@
 rust=$1
 ref_isol=$2
 host=$3
-genes=$4
+direction=$4
 blast_results=$5
 all_refs=$6
 out_dir=$7
@@ -29,6 +29,5 @@ do
         Jobs=$(squeue -u $USER | grep "PDnf" | wc -l)
     done
     echo "$ID submitted as sbatch $basedir/bin/hpc/2-submit.slurm $rust $ref_isol $fasta $host $blast_results $all_refs $genes $out_dir/${ID}_primer.csv"
-    sbatch $basedir/bin/hpc/2-submit.slurm $rust $ref_isol $fasta $host $blast_results $all_refs $genes $out_dir/${ID}_primer.csv $basedir
+    sbatch $basedir/bin/hpc/2-submit.slurm $rust $ref_isol $fasta $host $blast_results $all_refs $direction $out_dir/${ID}_primer.csv $basedir
 done
-
