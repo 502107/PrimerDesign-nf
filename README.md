@@ -21,7 +21,10 @@ When working on the HPC, for parallelisation of the primer design, move the file
 ```
 sbatch submit-main.nf
 ```
-> `cleanup.sh` should be able to concatenate files after the pipeline finishes, and remove unnecessary files.
+> `cleanup.sh` concatenates the primer output files after the pipeline finishes, and removes unnecessary files/directories.
+
+> [!NOTE]
+> - Currently we check either the forward or reverse primer, by changing the direction variable of the _PrimerDesign_ process inside `main.nf`, to either _forward_ or _reverse_.
 
 ## Documentation
 
@@ -71,7 +74,7 @@ Using the conserved fasta files created in the previous step, here we use Primer
 We need each of our primer pairs to only amplify one gene, and work across all the reference isolates. We also need to ensure that the primer pair doesn't amplify any region in the host genome.
 In order to filter out these primers and find the best hits for each of the genes, the following steps are applied:
 1. First, the primer pairs are sorted with respect to how close they are to the actual gene sequence (i.e. without padding). At the moment, we are not considering any primers that go into the sequence.
-2. In order to check for regions the _forward_ primer and its reverse complement may align with, we search the length of the combined reference isolates with a moving window, for any region that is similar to the primer by at least 4 mismatches (i.e. if a region has 4 SNPs or less, compared to the primer sequence). This primer is therefore disregarded, and the next closest to the actual sequence is checked.
+2. In order to check for regions the _forward_ primer and its reverse complement may align with, we search the length of the combined reference isolates with a moving window, for any region that is similar to the primer by at least 4 mismatches (i.e. if a region has 4 SNPs or less, compared to the primer sequence). This primer would therefore be disregarded, and the next closest to the actual sequence checked. Here, we also check for regions that have 4 SNPs or less, if at least one SNP exists in the last 3 base pairs (or first three for the reverse complement of the right primer) -- if they do we then accept that hit.
 3. Obviously, this condition would always return a hit, given we have the gene sequence in the fasta files of the reference isolates. So, here we also check the blast results again, filtered as discussed in the previous process, and we obtain the sseqid (subject sequence ID -- i.e. reference isolate scaffold ID), start and end positions of the hits. These regions are replaced by ambiguities (N), so during the mismatch search these regions are not checked.
 4. The same principle of checking for mismatches, is also applied for the host genome.
 5. The valid genes are thus saved to csv files.
