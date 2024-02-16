@@ -18,10 +18,10 @@ fasta=$3
 host=$4
 blast_results=$5
 all_genes=$6
-genes=$7
+direction=$7
 out=$8
 basedir=$9
 
 echo "Submitted $out"
 
-python $basedir/bin/design_primers.py $rust $ref_isol $fasta $host $blast_results $all_genes $genes $out
+python $basedir/bin/design_primers.py $rust $ref_isol $fasta $host $blast_results $all_genes $out $direction
