@@ -50,7 +50,7 @@ process ExtractValidGenes {
     def isol_gff = "${baseDir}/assets/refs/${rust}${isol}/*.gff"
     def isol_fa = "${baseDir}/assets/refs/${rust}${isol}/*.fna" 
     """
-    extract_genes_validate.py $isol_fa $isol_gff $rust_list ${rust}_genes.fna
+    extract_genes_validate_splt.py $isol_fa $isol_gff $rust_list ${rust}_genes.fna
     """
 }
 
@@ -108,9 +108,9 @@ process FindConservedSites {
     def pst_genes = "${baseDir}/data/genes/pst_genes.fna"
     """
     if [[ "${rust}" == "pgt" ]]; then
-        conserved_sites.py ${rust} $blast_out $pgt_genes pgt_conserved_sites.fna
+        conserved_sites_splt.py ${rust} $blast_out $pgt_genes pgt_conserved_sites.fna
     elif [[ "${rust}" == "pst" ]]; then
-        conserved_sites.py ${rust} $blast_out $pst_genes pst_conserved_sites.fna
+        conserved_sites_splt.py ${rust} $blast_out $pst_genes pst_conserved_sites.fna
     else
         touch wait_conserved_sites.fna
     fi
@@ -137,11 +137,11 @@ process DesignPrimers {
     def direction = "reverse"    
     """
     if [[ "${rust}" == "pgt" ]]; then
-        bash ${baseDir}/bin/hpc/0-gettmp.sh $rust $conserved_dir/pgt_conserved_sites.fna ${baseDir}
-        sbatch ${baseDir}/bin/hpc/1-parallel.sh $rust $isol_gff/pgt210 $host $direction $blast_out $pgt_all ${baseDir}/data/primers/pgt ${baseDir}
+        bash ${baseDir}/bin/hpc_splt/0-gettmp.sh $rust $conserved_dir/pgt_conserved_sites.fna ${baseDir}
+        sbatch ${baseDir}/bin/hpc_splt/1-parallel.sh $rust $isol_gff/pgt210 $host $direction $blast_out $pgt_all ${baseDir}/data/primers/pgt ${baseDir}
     elif [[ "${rust}" == "pst" ]]; then
-        bash ${baseDir}/bin/hpc/0-gettmp.sh $rust $conserved_dir/pst_conserved_sites.fna ${baseDir}
-        sbatch ${baseDir}/bin/hpc/1-parallel.sh $rust $isol_gff/pst104 $host $direction $blast_out $pst_all ${baseDir}/data/primers/pst ${baseDir}
+        bash ${baseDir}/bin/hpc_splt/0-gettmp.sh $rust $conserved_dir/pst_conserved_sites.fna ${baseDir}
+        sbatch ${baseDir}/bin/hpc_splt/1-parallel.sh $rust $isol_gff/pst104 $host $direction $blast_out $pst_all ${baseDir}/data/primers/pst ${baseDir}
     else
         touch data/primers/wait_primers.csv
     fi
