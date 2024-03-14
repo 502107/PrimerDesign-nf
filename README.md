@@ -24,7 +24,9 @@ sbatch submit-main.nf
 > `cleanup.sh` concatenates the primer output files after the pipeline finishes, and removes unnecessary files/directories.
 
 > [!NOTE]
+> - You can install the dependencies (i.e. conda/mamba and environment), as well as download missing reference genomes for `assets/refs/` by `./nf-install.sh`
 > - Currently we check either the forward or reverse primer, by changing the direction variable of the _PrimerDesign_ process inside `main.nf`, to either _forward_ or _reverse_.
+> - In the latest update we include the option to search for 2 primer pairs/gene, using the `\*_splt\*` files (i.e. run `./main_splt.nf` or `sbatch submit-main_splt.nf`. That workflow, uses 3kb padding/gene, and searches the _forward_ primer for the first primer pair, and the _reverse_ primer for the second. We also drop blast hits that are in the same scaffold as another gene (will soon update to only consider those that are in the same region of that scaffold).
 
 ## Documentation
 
@@ -62,6 +64,7 @@ discounting insignificant hits, using the following conditions:
 1. If pident (% of identical positions) is 100%, or
 2. If pident >= 93 and the length of the sequence >= 1000, then
 3. Check if there are any other hits from the BLAST search under the same sseqid, if there are and if they come from the same gene, then concatenate them in one sequence, with hyphens between the gap of the two hits.
+4. Check that all the blast hits have at most 500b size difference from the original - if there's more then drop the hit. If all the blast results have >500b difference in size, then just consider everything, but most likely the primer search will fail.
 
 Following the filtering, the regions that were present in the BLAST results of all the isolates are concatinated in a fasta file, with SNPs in the sequence replaced with hyphens.
 
@@ -79,14 +82,11 @@ In order to filter out these primers and find the best hits for each of the gene
 4. The same principle of checking for mismatches, is also applied for the host genome.
 5. The valid genes are thus saved to csv files.
 
-> [!CAUTION]
-> This pipeline is still under development and may be prone to unforeseen bugs. Treat with care.
-
 ## Still to come
-- [ ] Some of the genes we're interested in, go above the 3 kbp threshold we have inexplicitly applied here. In a future update we need to handle genes whose lengths are >3.5 kbp with multiple overlapping primer pairs.
+- [X] Some of the genes we're interested in, go above the 3 kbp threshold we have inexplicitly applied here. In a future update we need to handle genes whose lengths are >3.5 kbp with multiple overlapping primer pairs.
 - [ ] Add option to handle Pgt genes from CRL75.
-- [ ] Streamline installation for users of Mac and Linux.
-- [ ] `assets/` directory, with the different isolates is not included due to file size restrictions. Working on a cloud link to download outside of github. This directory looks like this:
+- [X] Streamline installation for users of Mac and Linux.
+- [X] `assets/` directory, with the different isolates is not included due to file size restrictions. Working on a cloud link to download outside of github. This directory looks like this:
 > assets/  
 > └── refs  
 >     ├── host  
