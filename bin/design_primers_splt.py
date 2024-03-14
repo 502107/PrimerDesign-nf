@@ -5,8 +5,8 @@ import sys
 import primer3
 from Bio import SeqIO
 from Bio.Seq import Seq
-from extract_genes_validate import find_gene
-from conserved_sites import read_blast
+from extract_genes_validate_splt import find_gene
+from conserved_sites_splt import read_blast
 
 
 def primer3_design(gene_id, sequence):
@@ -17,7 +17,7 @@ def primer3_design(gene_id, sequence):
             'SEQUENCE_INCLUDED_REGION': [0, len(sequence)]
         },
         global_args={
-            'PRIMER_NUM_RETURN': 10000,
+            'PRIMER_NUM_RETURN': 20000,
             'PRIMER_OPT_SIZE': 20,
             'PRIMER_PICK_INTERNAL_OLIGO': 1,
             'PRIMER_INTERNAL_MAX_SELF_END': 8,
@@ -37,13 +37,13 @@ def primer3_design(gene_id, sequence):
             'PRIMER_MAX_SELF_END': 3,
             'PRIMER_PAIR_MAX_COMPL_ANY': 8,
             'PRIMER_PAIR_MAX_COMPL_END': 3,
-            'PRIMER_PRODUCT_SIZE_RANGE': [1000, 3000]
+            'PRIMER_PRODUCT_SIZE_RANGE': [1500, 3000]
         }
     )
 
     return primer3_result
 
-def search_mismatch(primer, sequence, max_mismatch=4, forward=True):
+def search_mismatch(primer, sequence, max_mismatch=3, forward=True):
     """
     Return True if the primer is diverse enough ( at least 1 snp in the last 3bp )
 
@@ -131,9 +131,9 @@ def modify_sequence(ref_fnas, gene_hits):
             else:
                 modified_sequence += str(record.seq)
         
-    return modified_sequence
+    return modified_sequence.upper()
 
-def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, forward=True):
+def design_splt_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas):
     valid_primers = []
     sequences = {}
     primer_pairs = []
@@ -142,9 +142,6 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
     padding_info = {}
     failed_genes = []
     
-    # Here we're using the read_blast function to save the blast results
-    # for each gene into a dictionary, where the key is the gene ID and
-    # the value is a list of hits
     for blast in os.listdir(blast_out):
         if blast.startswith(rust):
             blast_path = os.path.join(blast_out, blast)
@@ -154,14 +151,40 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
                 if qseqid not in all_blast_results:
                     all_blast_results[qseqid] = [hit_info]
                 else:
-                    all_blast_results[qseqid].append(hit_info)  
-    
+                    all_blast_results[qseqid].append(hit_info)
+
+    # need to do something about BLAST results that are identical for different genes..this will fix the issue for now, but will probably also need to check the start/end positions of the hits
+    # because we might have some genes that exist in the same scaffold...
+    # After the all_blast_results dictionary is fully populated
+    sseqid_dict = {}
+    to_remove = set()
+
+    # First pass to find sseqid that exist in more than one qseqid
+    for qseqid, hit_infos in all_blast_results.items():
+        for hit_info_list in hit_infos:
+            for hit_info in hit_info_list:
+                sseqid = hit_info['sseqid']
+                if sseqid in sseqid_dict and sseqid_dict[sseqid] != qseqid:
+                    to_remove.add(sseqid)
+                else:
+                    sseqid_dict[sseqid] = qseqid
+
+    # Second pass to create a new dictionary excluding the sseqid in to_remove
+    new_all_blast_results = {}
+    for qseqid, hit_infos in all_blast_results.items():
+        new_hit_infos = []
+        for hit_info_list in hit_infos:
+            if all(hit_info['sseqid'] not in to_remove for hit_info in hit_info_list):
+                new_hit_infos.append(hit_info_list)
+        if new_hit_infos:
+            new_all_blast_results[qseqid] = new_hit_infos
+
     with open(conserved_sites) as f:
         for record in SeqIO.parse(f, "fasta"):
             sequences[record.id] = str(record.seq).replace('-', 'N')
            
     for gene_id, sequence in sequences.items():
-        gene_hits = extract_gene_hits(all_blast_results, gene_id)
+        gene_hits = extract_gene_hits(new_all_blast_results, gene_id)
         modified_sequence = modify_sequence(ref_fnas, gene_hits)
 
         valid_gene = False
@@ -171,86 +194,82 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             
         sseqid, sstart, send = gene_info
         
-        padding = 500
+        padding = 3000
         
-        # Replacing the gene sequence with Ns to avoid creating of primer pairs for the internal regions (+/- 100bp from the ends)
-        new_sequence = ""
-        sequence = sequence[:(padding - 100)] + "N"*((len(sequence) - padding + 100) - (padding - 100)) + sequence[(len(sequence) - (padding - 100)):]
-        new_sequence += sequence
-        
-        primer3_result = primer3_design(gene_id, new_sequence)
+        primer3_result = primer3_design(gene_id, sequence)
         
         primer_pairs.clear()
-        # To find the best_hit (i.e. the primer pair that covers the region as close to the
-        # actual gene as possible, without the padding, we're sorting by closest distance)
+
         for i in range(primer3_result['PRIMER_PAIR_NUM_RETURNED']):
             primer_left_pos = primer3_result[f'PRIMER_LEFT_{i}'][0]
             primer_right_pos = primer3_result[f'PRIMER_RIGHT_{i}'][0]
             seqlen_amplifying = primer_right_pos - primer_left_pos
-            primer_pairs.append((seqlen_amplifying, i))
-        primer_pairs.sort(key=lambda x: x[0])
+            primer_pairs.append((primer_left_pos, primer_right_pos, i))
         
-        for dist, i in primer_pairs:
-            primer_left_seq = primer3_result[f'PRIMER_LEFT_{i}_SEQUENCE']
-            primer_right_seq = primer3_result[f'PRIMER_RIGHT_{i}_SEQUENCE']
-            primer_left_pos = primer3_result[f'PRIMER_LEFT_{i}'][0]
-            primer_right_pos = primer3_result[f'PRIMER_RIGHT_{i}'][0]
+        primer_pairs.sort(key=lambda x: x[0])
+                
+        for forward,reverse, i in primer_pairs:
+            forpos = primer3_result[f'PRIMER_LEFT_{i}'][0]
+            revpos = primer3_result[f'PRIMER_RIGHT_{i}'][0]
+            forseq = primer3_result[f'PRIMER_LEFT_{i}_SEQUENCE']
+            revseq = primer3_result[f'PRIMER_RIGHT_{i}_SEQUENCE']
             
-            # I think the best way to do this is to check which part of the blast results
-            # the primer hits amplify, then get that sseqid, sstart and send to check against
-            # the reference isolates, but skip those regions
-            # I think it's faster to check the isolates first and then the host (takes ~5 mins/seq)
-            if forward:
-                if not check_ref_isols(primer_left_seq, checked_primers, modified_sequence):
-                    # Checking if the primer pair amplifies on the host genome
-                    if not check_host(primer_left_seq, host_genome, checked_primers):
-                        valid_primers.append({
-                            'GeneID': gene_id,
-                            'PrimerPair': i+1,
-                            'PrimerSeq_F': primer_left_seq,
-                            'PrimerLoc_F': primer_left_pos,
-                            'PrimerSeq_R': primer_right_seq,
-                            'PrimerLoc_R': primer_right_pos,
-                            'GeneLength_no_padding': len(sequence) - 2*padding,
-                            'GeneLength_with_padding': len(sequence),
-                            'Primer_coverage': primer_right_pos - primer_left_pos
-                        })
-                        valid_gene = True
-                        break
+            if not check_ref_isols(forseq, checked_primers, modified_sequence) and not check_host(forseq, host_genome, checked_primers):
+                break        
+            
+        print('primer1: ',forseq, revseq, forpos, revpos)        
+        resorted_pp=sorted(primer_pairs, key=lambda x: -x[1] if (x[0] > forward+1000 and x[0] < reverse and x[1] > reverse) else float('inf'))
+            
+        for forward2,reverse2, j in resorted_pp:
+            if i == j or (forward2 > revpos) or (abs(forpos - forward2) <= 500) or (reverse2 <= revpos+500):
+                continue
+            if forward2 < revpos:
+                forpos2 = primer3_result[f'PRIMER_LEFT_{j}'][0]
+                revpos2 = primer3_result[f'PRIMER_RIGHT_{j}'][0]
+                forseq2 = primer3_result[f'PRIMER_LEFT_{j}_SEQUENCE']
+                revseq2 = primer3_result[f'PRIMER_RIGHT_{j}_SEQUENCE']
 
-            else:
-                if not check_ref_isols(primer_right_seq, checked_primers, modified_sequence, forward=False):
-                    # Checking if the primer pair amplifies on the host genome
-                    if not check_host(primer_right_seq, host_genome, checked_primers, forward=False):
-                        valid_primers.append({
-                            'GeneID': gene_id,
-                            'PrimerPair': i+1,
-                            'PrimerSeq_F': primer_left_seq,
-                            'PrimerLoc_F': primer_left_pos,
-                            'PrimerSeq_R': primer_right_seq,
-                            'PrimerLoc_R': primer_right_pos,
-                            'GeneLength_no_padding': len(sequence) - 2*padding,
-                            'GeneLength_with_padding': len(sequence),
-                            'Primer_coverage': primer_right_pos - primer_left_pos
-                        })
-                        valid_gene = True
-                        break
-                    
+                if not check_ref_isols(revseq2, checked_primers, modified_sequence, forward=False) and not check_host(revseq2, host_genome, checked_primers, forward=False):
+                    print('primer2: ',forseq2, revseq2, forpos2, revpos2)
+                    valid_primers.append({
+                        'GeneID': gene_id,
+                        'PrimerPair1': i+1,
+                        'PrimerSeq_F1': forseq,
+                        'PrimerLoc_F1': forpos,
+                        'PrimerSeq_R1': revseq,
+                        'PrimerLoc_R1': revpos,
+                        'PrimerPair2': j+1,
+                        'PrimerSeq_F2': forseq2,
+                        'PrimerLoc_F2': forpos2,
+                        'PrimerSeq_R2': revseq2,
+                        'PrimerLoc_R2': revpos2,
+                        'GeneLength_no_padding': len(sequence) - 2*padding,
+                        'GeneLength_with_padding': len(sequence),
+                        'Primer_coverage': revpos2 - forpos
+                    })
+                    valid_gene = True
+                    break
+            
         if not valid_gene:
             failed_genes.append(gene_id)
 
     # If no valid primers are identified then just fail the gene
     for gene_id in failed_genes:
         valid_primers.append({
-            'GeneID': gene_id,
-            'PrimerPair': None,
-            'PrimerSeq_F': None,
-            'PrimerLoc_F': None,
-            'PrimerSeq_R': None,
-            'PrimerLoc_R': None,
-            'GeneLength_no_padding': None,
-            'GeneLength_with_padding': None,
-            'Primer_coverage': None
+        'GeneID': gene_id,
+        'PrimerPair1': None,
+        'PrimerSeq_F1': None,
+        'PrimerLoc_F1': None,
+        'PrimerSeq_R1': None,
+        'PrimerLoc_R1': None,
+        'PrimerPair2': None,
+        'PrimerSeq_F2': None,
+        'PrimerLoc_F2': None,
+        'PrimerSeq_R2': None,
+        'PrimerLoc_R2': None,
+        'GeneLength_no_padding': None,
+        'GeneLength_with_padding': None,
+        'Primer_coverage': None
         })
     return valid_primers
 
@@ -282,13 +301,12 @@ def main():
     else:
         raise FileNotFoundError("No .gff file found in the specified directory")
 
-    valid_primers = design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, forward=direction)
+    valid_primers = design_splt_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas)
         
-    
     with open(output_file, 'w') as csvfile:
-        csvfile.write("GeneID,PrimerPair,PrimerSeq_F,PrimerLoc_F,PrimerSeq_R,PrimerLoc_R,GeneLength_no_padding,GeneLength_with_padding,Primer_coverage\n")
+        csvfile.write("GeneID,PrimerPair1,PrimerSeq_F1,PrimerLoc_F1,PrimerSeq_R1,PrimerLoc_R1,PrimerPair2,PrimerSeq_F2,PrimerLoc_F2,PrimerSeq_R2,PrimerLoc_R1GeneLength_no_padding,GeneLength_with_padding,Primer_coverage\n")
         for pair in valid_primers:
-            csvfile.write(f"{pair['GeneID']},{pair['PrimerPair']},{pair['PrimerSeq_F']},{pair['PrimerLoc_F']},{pair['PrimerSeq_R']},{pair['PrimerLoc_R']}, {pair['GeneLength_no_padding']}, {pair['GeneLength_with_padding']}, {pair['Primer_coverage']}\n")
+            csvfile.write(f"{pair['GeneID']},{pair['PrimerPair1']},{pair['PrimerSeq_F1']},{pair['PrimerLoc_F1']},{pair['PrimerSeq_R1']},{pair['PrimerLoc_R1']},{pair['PrimerPair2']},{pair['PrimerSeq_F2']},{pair['PrimerLoc_F2']},{pair['PrimerSeq_R2']},{pair['PrimerLoc_R2']},{pair['GeneLength_no_padding']},{pair['GeneLength_with_padding']},{pair['Primer_coverage']}\n")
 
 if __name__ == "__main__":
     main()

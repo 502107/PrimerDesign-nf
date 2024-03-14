@@ -4,7 +4,7 @@ from Bio import SeqIO
 import os
 import re
 
-def extract_genes(ref_fasta, ref_annotation, gene_list, output_dir, padding=500, max_padding=1000):
+def extract_genes(ref_fasta, ref_annotation, gene_list, output_dir, padding, max_padding=4000):
     with open(gene_list) as f:
         # We need to consider each gene in separate lines
         gene_list = f.read().splitlines()
@@ -35,7 +35,7 @@ def extract_genes(ref_fasta, ref_annotation, gene_list, output_dir, padding=500,
                 unique = check_unique(padded_seq, sequences, gene_id)
                 
                 if not unique:
-                    current_padding += 500
+                    current_padding += 1000
                 
                 if unique or current_padding > max_padding:
                     out_sequences[gene_name] = padded_seq
@@ -88,7 +88,7 @@ def main():
         padding=int(padding)
     else:
         fasta_file, ref_file, gene_names_file, output_file = sys.argv[1:5]
-        padding=500
+        padding=3000
     
     out_sequences, out_padding = extract_genes(fasta_file, ref_file, gene_names_file, output_file, padding=padding)
 

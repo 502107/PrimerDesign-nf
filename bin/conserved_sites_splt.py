@@ -81,6 +81,7 @@ def align_seqs(sequences):
 
 def find_conserved_sites(blast_results):
     conserved_sites = {}
+
     for qseqid, hits in blast_results.items():
         sequences = []
         edited_sequences = []
@@ -139,8 +140,8 @@ def find_conserved_sites(blast_results):
             else:
                 conserved_seq = find_conserved_seq(sequences)
             if conserved_seq:
-                conserved_sites[qseqid] = conserved_seq    
-        
+                conserved_sites[qseqid] = conserved_seq
+            
     return conserved_sites
 
 def find_conserved_seq(sequences):
@@ -182,7 +183,38 @@ def main():
                     all_blast_results[qseqid] = [hit_info]
                 else:
                     all_blast_results[qseqid].append(hit_info)
-                
+    
+# For the fungicide genes, where we have very similar sequences
+# I will be checking the blast results, and drop the hits that are
+# repeated for another gene, as we're probably unsure of that site.
+
+    sseqid_dict = {}
+    to_remove = set()
+
+    # First pass to find sseqid that exist in more than one qseqid
+    for qseqid, hit_infos in all_blast_results.items():
+        for hit_info_list in hit_infos:
+            for hit_info in hit_info_list:
+                sseqid = hit_info['sseqid']
+                if sseqid in sseqid_dict and sseqid_dict[sseqid] != qseqid:
+                    to_remove.add(sseqid)
+                else:
+                    sseqid_dict[sseqid] = qseqid
+
+    # Second pass to create a new dictionary excluding the sseqid in to_remove
+    new_all_blast_results = {}
+    for qseqid, hit_infos in all_blast_results.items():
+        new_hit_infos = []
+        for hit_info_list in hit_infos:
+            if all(hit_info['sseqid'] not in to_remove for hit_info in hit_info_list):
+                new_hit_infos.append(hit_info_list)
+        if new_hit_infos:
+            new_all_blast_results[qseqid] = new_hit_infos
+
+    all_blast_results = new_all_blast_results
+
+# Done with the change
+            
     conserved_sites = find_conserved_sites(all_blast_results)
     
     with open(output_file, 'w') as f:
