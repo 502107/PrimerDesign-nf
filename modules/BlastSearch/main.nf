@@ -39,7 +39,7 @@ process CombineRustReferences {
 
 rust_isol = Channel.from(
     tuple('pgt', '210', "${params.baseDir}/assets/refs/pgt210"),
-    tuple('pst', '130', "${params.baseDir}/assets/refs/pst130")
+    tuple('pst', '104', "${params.baseDir}/assets/refs/pst104")
 )
 
 include { BlastSearch as BlastSearch1 } from './modules/BlastSearch'
@@ -60,7 +60,10 @@ workflow {
 
     blast_out_ch = pgt_blast_results_ch.mix(pst_blast_results_ch)
     
-    conserved_ch = FindConservedSites(blast_out_ch.groupTuple(), Channel.from("pgt", "pst"))
+    // Ensure that BlastSearch1 and BlastSearch2 always emit their respective
+    // (rust_type, path_to_blast_output) tuples. If no blast hits, path_to_blast_output can be an empty file.
+    // This will ensure blast_out_ch.groupTuple() contains entries for both 'pgt' and 'pst'.
+    conserved_ch = FindConservedSites(blast_out_ch.groupTuple())
     DesignPrimers(conserved_ch, host, pgt_all_ref, pst_all_ref)
 }
 
@@ -99,21 +102,15 @@ process FindConservedSites {
     publishDir "${params.outputDir}/conserved_sites", mode: 'copy'
 
     input:
-    tuple val(rust), path(blast_files)
-    val rust_type
+    tuple val(rust), path(blast_files) // blast_files will be a list of paths from groupTuple, staged by Nextflow
 
     output:
     tuple val(rust), path("${rust}_conserved_sites.fna")
 
     script:
     """
-    if [[ "${rust}" == "${rust_type}" ]]; then
-        genes_file="${params.outputDir}/genes/${rust}_genes.fna"
-        conserved_sites.py ${rust} . \$genes_file ${rust}_conserved_sites.fna
-    else
-        # Create an empty file if condition not met, to satisfy output channel expectation
-        touch ${rust}_conserved_sites.fna
-    fi
+    source package 999eb878-6c39-444e-a291-e2e0a86660e6 # Load clustalw2 through the prokka package
+    conserved_sites.py ${rust} "${params.outputDir}/blast_results" "${params.outputDir}/genes/${rust}_genes.fna" ${rust}_conserved_sites.fna
     """
 }
 
@@ -135,7 +132,7 @@ process DesignPrimers {
     path "${rust}_primers.csv", optional: true
 
     script:
-    def isol_dir = rust == "pgt" ? "${params.baseDir}/assets/refs/pgt210" : "${params.baseDir}/assets/refs/pst130"
+    def isol_dir = rust == "pgt" ? "${params.baseDir}/assets/refs/pgt210" : "${params.baseDir}/assets/refs/pst104"
     def actual_rust_ref = rust == "pgt" ? pgt_all_ref : pst_all_ref
     """
     source package 999eb878-6c39-444e-a291-e2e0a86660e6 # Load GNU Parallel through the prokka package
@@ -144,7 +141,7 @@ process DesignPrimers {
     split_fasta.py ${conserved_sites} tmp_${rust}_genes/
 
     find tmp_${rust}_genes/ -type f -name "*.fna" | \
-    parallel -j ${task.cpus} "design_primers.py {} ${isol_dir} ${host_ref} ${params.direction} ${actual_rust_ref} {/.}_primers.tmp"
+    parallel -j ${task.cpus} "bin/design_primers.py {} ${isol_dir} ${host_ref} ${params.direction} ${actual_rust_ref} {/.}_primers.tmp"
 
     if ls tmp_${rust}_genes/*_primers.tmp 1> /dev/null 2>&1; then
         cat tmp_${rust}_genes/*_primers.tmp > ${rust}_primers.csv

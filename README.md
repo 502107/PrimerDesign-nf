@@ -13,20 +13,18 @@
 
 When working on the local machine, just run:
 ```
-./main.nf
+./main.nf -profile local
 ```
-> Or, `./main.nf -resume`
+> Or, `./main.nf -profile local -resume`
 
-When working on the HPC, for parallelisation of the primer design, move the files in `bin/mv_to_base_for_hpc/` to the base directory, and run:
+When working on the HPC, run:
 ```
-sbatch submit-main.nf
+./main.nf -profile slurm
 ```
-> `cleanup.sh` concatenates the primer output files after the pipeline finishes, and removes unnecessary files/directories.
 
 > [!NOTE]
 > - You can install the dependencies (i.e. conda/mamba and environment), as well as download missing reference genomes for `assets/refs/` by `./nf-install.sh`
 > - Currently we check either the forward or reverse primer, by changing the direction variable of the _PrimerDesign_ process inside `main.nf`, to either _forward_ or _reverse_.
-> - In the latest update we include the option to search for 2 primer pairs/gene, using the `\*_splt\*` files (i.e. run `./main_splt.nf` or `sbatch submit-main_splt.nf`. That workflow, uses 3kb padding/gene, and searches the _forward_ primer for the first primer pair, and the _reverse_ primer for the second. We also drop blast hits that are in the same scaffold as another gene (will soon update to only consider those that are in the same region of that scaffold).
 
 ## Documentation
 
