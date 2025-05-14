@@ -106,8 +106,8 @@ In order to filter out these primers and find the best hits for each of the gene
 >     │   ├── GCA_000149925.1_ASM14992v1_genomic.fna  
 >     │   └── crl75_genomic.gff  
 >     ├── pst130  
->     │   ├── Puccinia_striiformis.PST-130_1.0.dna.toplevel.fna
->     │   └── Puccinia_striiformis.PST-130_1.0.60.gff
+>     │   ├── Puccinia_striiformis.PST-130_1.0.dna.toplevel.fna 
+>     │   └── Puccinia_striiformis.PST-130_1.0.60.gff 
 >     └── pst_all  
 >         ├── GCA_011750755.1_ASM1175075v1_genomic.fna  
 >         ├── GCA_021901695.1_Pst134E36_v1_pri_genomic.fna  
