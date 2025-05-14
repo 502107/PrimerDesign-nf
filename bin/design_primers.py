@@ -217,7 +217,8 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
                             'PrimerLoc_F': primer_left_pos,
                             'PrimerSeq_R': primer_right_seq,
                             'PrimerLoc_R': primer_right_pos,
-                            'GeneLength': len(sequence),
+                            'GeneLength': len(sequence) - 2*padding,
+                            'GeneLength_with_padding': len(sequence),
                             'Primer_coverage': primer_right_pos - primer_left_pos
                         })
                         valid_gene = True
@@ -234,7 +235,8 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
                             'PrimerLoc_F': primer_left_pos,
                             'PrimerSeq_R': primer_right_seq,
                             'PrimerLoc_R': primer_right_pos,
-                            'GeneLength': len(sequence),
+                            'GeneLength': len(sequence)-2*padding,
+                            'GeneLength_with_padding': len(sequence),
                             'Primer_coverage': primer_right_pos - primer_left_pos
                         })
                         valid_gene = True
@@ -253,6 +255,7 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             'PrimerSeq_R': None,
             'PrimerLoc_R': None,
             'GeneLength': None,
+            'GeneLength_with_padding': None,
             'Primer_coverage': None
         })
     return valid_primers
@@ -291,9 +294,9 @@ def main():
     valid_primers = design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, padding, forward=direction)
         
     with open(output_file, 'w') as csvfile:
-        csvfile.write("GeneID,PrimerPair,PrimerSeq_F,PrimerLoc_F,PrimerSeq_R,PrimerLoc_R,GeneLength,Primer_coverage\n")
+        csvfile.write("GeneID,PrimerPair,PrimerSeq_F,PrimerLoc_F,PrimerSeq_R,PrimerLoc_R,GeneLength,GeneLength_with_padding,Primer_coverage\n")
         for pair in valid_primers:
-            csvfile.write(f"{pair['GeneID']},{pair['PrimerPair']},{pair['PrimerSeq_F']},{pair['PrimerLoc_F']},{pair['PrimerSeq_R']},{pair['PrimerLoc_R']},{pair['GeneLength']},{pair['Primer_coverage']}\n")
+            csvfile.write(f"{pair['GeneID']},{pair['PrimerPair']},{pair['PrimerSeq_F']},{pair['PrimerLoc_F']},{pair['PrimerSeq_R']},{pair['PrimerLoc_R']},{pair['GeneLength']},{pair['GeneLength_with_padding']},{pair['Primer_coverage']}\n")
 
 if __name__ == "__main__":
     main()
