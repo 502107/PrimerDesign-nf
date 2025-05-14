@@ -1,10 +1,10 @@
-#!/pythonloc
+#!/hpc-home/vof23jop/mambaforge/envs/nextflow/bin/python
 import sys
 from Bio import SeqIO
 import os
 import re
 
-def extract_genes(ref_fasta, ref_annotation, gene_list, output_dir, padding=500, max_padding=1000):
+def extract_genes(ref_fasta, ref_annotation, gene_list, output_dir, padding, max_padding=1500):
     with open(gene_list) as f:
         # We need to consider each gene in separate lines
         gene_list = f.read().splitlines()
@@ -67,6 +67,8 @@ def sort_fasta(ref_fasta):
 def find_gene(ref_annotation, gene_name):
     with open(ref_annotation) as f:
         for line in f:
+            if line.startswith("##"):
+                continue
             if gene_name in line:
                 parts = line.split()
                 # Getting the gene ID, start and end positions from the line containing the gene name
@@ -80,15 +82,16 @@ def pad_sequence(sequence, start, end, padding):
     return sequence[new_start-1:new_end]
 
 def main():
-    if len(sys.argv) not in range(5,6):
-        print("Usage: extract_genes.py <FASTA_FILE> <REF_FILE> <GENE_NAMES_FILE> <OUTPUT_FILE> <PADDING (default=500)>")
+    if not (5 <= len(sys.argv) <= 6):
+        print("Usage: extract_genes.py <FASTA_FILE> <REF_FILE> <GENE_NAMES_FILE> <OUTPUT_FILE> <PADDING (default=0)>")
         sys.exit(1)
+    
     if len(sys.argv) == 6:
-        fasta_file, ref_file, gene_names_file, output_file, padding = sys.argv[1:6]
-        padding=int(padding)
+        fasta_file, ref_file, gene_names_file, output_file, padding_arg = sys.argv[1:6]
+        padding = int(padding_arg)
     else:
         fasta_file, ref_file, gene_names_file, output_file = sys.argv[1:5]
-        padding=500
+        padding = 0
     
     out_sequences, out_padding = extract_genes(fasta_file, ref_file, gene_names_file, output_file, padding=padding)
 

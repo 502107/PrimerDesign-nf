@@ -21,6 +21,10 @@ When working on the HPC, run:
 ```
 ./main.nf -profile slurm
 ```
+To change the padding (value) around the genes of interest, or the direction (forward/reverse) to check for off-targets:
+```
+./main.nf -profile slurm -resume --padding 0 --direction reverse
+```
 
 > [!NOTE]
 > - You can install the dependencies (i.e. conda/mamba and environment), as well as download missing reference genomes for `assets/refs/` by `./nf-install.sh`
@@ -28,7 +32,7 @@ When working on the HPC, run:
 
 ## Documentation
 
-The pipeline currently works on Pgt210 and Pst104e annotated genes. In a future implementation this will be updated to also consider PgtCRL75, although not actively working to update this.
+The pipeline currently works on Pgt210 and PST130 annotated genes. In a future implementation this will be updated to also consider PgtCRL75, although not actively working to update this.
 There are 4 main processes in this workflow, outlined below.
   > The pipeline could be made faster by only considering one of the rusts, since nextflow is well-suited for relay processes.
   > This is not an option in the current implementation, because of post-sorting of the outputs inside succeeding processes.
@@ -101,9 +105,9 @@ In order to filter out these primers and find the best hits for each of the gene
 >     ├── pgtcrl  
 >     │   ├── GCA_000149925.1_ASM14992v1_genomic.fna  
 >     │   └── crl75_genomic.gff  
->     ├── pst104  
->     │   ├── pst104e.fna  
->     │   └── pst104e.gff  
+>     ├── pst130  
+>     │   ├── Puccinia_striiformis.PST-130_1.0.dna.toplevel.fna
+>     │   └── Puccinia_striiformis.PST-130_1.0.60.gff
 >     └── pst_all  
 >         ├── GCA_011750755.1_ASM1175075v1_genomic.fna  
 >         ├── GCA_021901695.1_Pst134E36_v1_pri_genomic.fna  

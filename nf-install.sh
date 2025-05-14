@@ -44,14 +44,16 @@ sed -i-tmp "1s|#.*|${python_path}|" bin/*py
 
 mkdir -p assets/refs/host
 mkdir -p assets/refs/pgt210
-mkdir -p assets/refs/pst104
+mkdir -p assets/refs/pst130
 mkdir -p assets/refs/pgt_all
 mkdir -p assets/refs/pst_all
 
 # Host reference
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/018/294/505/GCF_018294505.1_IWGSC_CS_RefSeq_v2.1/GCF_018294505.1_IWGSC_CS_RefSeq_v2.1_genomic.fna.gz -P assets/refs/host/
 # Pst references
-# For pst104e need to login here: https://genome.jgi.doe.gov/portal/Pucstr1/Pucstr1.download.html; so i'll include it using git lfs
+# For pst104e need to login here: https://genome.jgi.doe.gov/portal/Pucstr1/Pucstr1.download.html
+wget https://ftp.ensemblgenomes.ebi.ac.uk/pub/fungi/release-61/fasta/puccinia_striiformis/dna/Puccinia_striiformis.PST-130_1.0.dna.toplevel.fa.gz -P assets/refs/pst130/
+wget https://ftp.ensemblgenomes.ebi.ac.uk/pub/fungi/release-61/gff3/puccinia_striiformis/Puccinia_striiformis.PST-130_1.0.61.gff3.gz -P assets/refs/pst130/
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/021/901/695/GCA_021901695.1_Pst134E36_v1_pri/GCA_021901695.1_Pst134E36_v1_pri_genomic.fna.gz -P assets/refs/pst_all/
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/025/169/535/GCA_025169535.1_ASM2516953v1/GCA_025169535.1_ASM2516953v1_genomic.fna.gz -P assets/refs/pst_all/
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/011/750/755/GCA_011750755.1_ASM1175075v1/GCA_011750755.1_ASM1175075v1_genomic.fna.gz -P assets/refs/pst_all/
@@ -69,9 +71,7 @@ gunzip assets/refs/host/GCF_018294505.1_IWGSC_CS_RefSeq_v2.1_genomic.fna.gz
 mv assets/refs/host/GCF_018294505.1_IWGSC_CS_RefSeq_v2.1_genomic.fna assets/refs/host/GCF_018294505.1.fna
 
 gunzip assets/refs/pgt210/GCA_008522505.1_Pgt_210_genomic.fna.gz
-gunzip assets/refs/pst104/pst104e.fna.gz
 cp assets/refs/pgt210/GCA_008522505.1_Pgt_210_genomic.fna assets/refs/pgt_all/.
-cp assets/refs/pst104/pst104e.fna assets/refs/pst_all/.
 
 gunzip assets/refs/pst_all/GCA_021901695.1_Pst134E36_v1_pri_genomic.fna.gz
 gunzip assets/refs/pst_all/GCA_025169535.1_ASM2516953v1_genomic.fna.gz

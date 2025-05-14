@@ -1,4 +1,4 @@
-#!/pythonloc
+#!/hpc-home/vof23jop/mambaforge/envs/nextflow/bin/python
 import os
 import sys
 import subprocess
@@ -123,7 +123,7 @@ def find_conserved_sites(blast_results):
                     smallest_send = hit['send']
                     
             sequences.append(combined_seq)
-
+            
 # Here, we're checking that there are enough bases in all blast results, so that we're not removing a lot of bases for hits that are empty [mod:ls120324]
         max_seqlen=max([len(seq) for seq in sequences])
         for seq in sequences:
@@ -139,8 +139,8 @@ def find_conserved_sites(blast_results):
             else:
                 conserved_seq = find_conserved_seq(sequences)
             if conserved_seq:
-                conserved_sites[qseqid] = conserved_seq    
-        
+                conserved_sites[qseqid] = conserved_seq
+
     return conserved_sites
 
 def find_conserved_seq(sequences):

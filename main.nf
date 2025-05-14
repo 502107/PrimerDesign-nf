@@ -14,54 +14,46 @@ params.pgtRefsDir = "${params.baseDir}/assets/refs/pgt_all/*.fna"
 params.pstRefsDir = "${params.baseDir}/assets/refs/pst_all/*.fna"
 params.outputDir = "${params.baseDir}/results"
 params.direction = "forward"
+params.padding = "500"
 
 host = Channel.fromPath(params.hostRef)
 pgt_refs = Channel.fromPath(params.pgtRefsDir)
 pst_refs = Channel.fromPath(params.pstRefsDir)
 
-process CombineRustReferences {
-    publishDir "${params.outputDir}/combined_refs", mode: 'copy'
-    
-    input:
-    path pgt_files
-    path pst_files
-    
-    output:
-    path 'pgt_all.fna', emit: pgt_all
-    path 'pst_all.fna', emit: pst_all
-    
-    script:
-    """
-    cat ${pgt_files} > pgt_all.fna
-    cat ${pst_files} > pst_all.fna
-    """
-}
-
 rust_isol = Channel.from(
-    tuple('pgt', '210', "${params.baseDir}/assets/refs/pgt210"),
-    tuple('pst', '130', "${params.baseDir}/assets/refs/pst130")
+    tuple('pgt', '210', "${params.baseDir}/assets/refs/pgt210", params.padding),
+    tuple('pst', '130', "${params.baseDir}/assets/refs/pst130", params.padding)
 )
 
-include { BlastSearch as BlastSearch1 } from './modules/BlastSearch'
-include { BlastSearch as BlastSearch2 } from './modules/BlastSearch'
+include { BlastSearch as BlastSearchPgt } from './modules/BlastSearch'
+include { BlastSearch as BlastSearchPst } from './modules/BlastSearch'
+include { DesignPrimers as DesignPrimersPgt } from './modules/DesignPrimers'
+include { DesignPrimers as DesignPrimersPst } from './modules/DesignPrimers'
 
 workflow {
-    combinedRefs = CombineRustReferences(pgt_refs.collect(), pst_refs.collect())
-    pgt_all_ref = combinedRefs.pgt_all
-    pst_all_ref = combinedRefs.pst_all
+    pgt_all = pgt_refs.collectFile(name: 'pgt_all.fna', newLine: true)
+    pst_all = pst_refs.collectFile(name: 'pst_all.fna', newLine: true)
     
     genes_ch = ExtractValidGenes(rust_isol)
 
     pgt_genes_ch = genes_ch.filter { it[0] == 'pgt' } 
     pst_genes_ch = genes_ch.filter { it[0] == 'pst' } 
 
-    pgt_blast_results_ch = BlastSearch1(pgt_genes_ch, pgt_refs) 
-    pst_blast_results_ch = BlastSearch2(pst_genes_ch, pst_refs)
+    pgt_blast_results_ch = BlastSearchPgt(pgt_genes_ch, pgt_refs) 
+    pst_blast_results_ch = BlastSearchPst(pst_genes_ch, pst_refs)
 
     blast_out_ch = pgt_blast_results_ch.mix(pst_blast_results_ch)
     
-    conserved_ch = FindConservedSites(blast_out_ch.groupTuple(), Channel.from("pgt", "pst"))
-    DesignPrimers(conserved_ch, host, pgt_all_ref, pst_all_ref)
+    conserved_ch = FindConservedSites(blast_out_ch.groupTuple())
+    // Split conserved_ch by rust type
+    pgt_conserved_ch = conserved_ch.filter { it[0] == 'pgt' }
+    pst_conserved_ch = conserved_ch.filter { it[0] == 'pst' }
+
+    def blast_output_dir = file("${params.outputDir}/blast_results")
+    
+    DesignPrimersPgt(pgt_conserved_ch.map{ rust_val, sites_path -> tuple(rust_val, sites_path, params.padding) }, host, pgt_all, blast_output_dir)
+    DesignPrimersPst(pst_conserved_ch.map{ rust_val, sites_path -> tuple(rust_val, sites_path, params.padding) }, host, pst_all, blast_output_dir)
+
 }
 
 process ExtractValidGenes {
@@ -75,7 +67,7 @@ process ExtractValidGenes {
     publishDir "${params.outputDir}/genes", mode: 'copy'
 
     input:
-    tuple val(rust), val(isol), val(isol_dir)
+    tuple val(rust), val(isol), val(isol_dir), val(padding)
 
     output:
     tuple val(rust), path("${rust}_genes.fna")
@@ -86,70 +78,27 @@ process ExtractValidGenes {
     isol_gff="${isol_dir}/*.gff"
     isol_fa="${isol_dir}/*.fna"
     
-    extract_genes_validate.py \$isol_fa \$isol_gff \$rust_list ${rust}_genes.fna
+    extract_genes_validate.py \$isol_fa \$isol_gff \$rust_list ${rust}_genes.fna ${padding}
     """
 }
 
 process FindConservedSites {
     tag "${rust}"
     executor 'slurm'
-    cpus 2
-    memory '8 GB'
-    time '2h'
+    cpus 16
+    memory '50 GB'
+    time '20h'
     publishDir "${params.outputDir}/conserved_sites", mode: 'copy'
 
     input:
     tuple val(rust), path(blast_files)
-    val rust_type
 
     output:
     tuple val(rust), path("${rust}_conserved_sites.fna")
 
     script:
     """
-    if [[ "${rust}" == "${rust_type}" ]]; then
-        genes_file="${params.outputDir}/genes/${rust}_genes.fna"
-        conserved_sites.py ${rust} . \$genes_file ${rust}_conserved_sites.fna
-    else
-        # Create an empty file if condition not met, to satisfy output channel expectation
-        touch ${rust}_conserved_sites.fna
-    fi
-    """
-}
-
-process DesignPrimers {
-    tag "${rust}"
-    executor 'slurm'
-    cpus 8
-    memory '16 GB'
-    time '4h'
-    publishDir "${params.outputDir}/primers", mode: 'copy'
-
-    input:
-    tuple val(rust), path(conserved_sites)
-    path host_ref
-    path pgt_all_ref
-    path pst_all_ref
-
-    output:
-    path "${rust}_primers.csv", optional: true
-
-    script:
-    def isol_dir = rust == "pgt" ? "${params.baseDir}/assets/refs/pgt210" : "${params.baseDir}/assets/refs/pst130"
-    def actual_rust_ref = rust == "pgt" ? pgt_all_ref : pst_all_ref
-    """
-    source package 999eb878-6c39-444e-a291-e2e0a86660e6 # Load GNU Parallel through the prokka package
-
-    mkdir -p tmp_${rust}_genes
-    split_fasta.py ${conserved_sites} tmp_${rust}_genes/
-
-    find tmp_${rust}_genes/ -type f -name "*.fna" | \
-    parallel -j ${task.cpus} "design_primers.py {} ${isol_dir} ${host_ref} ${params.direction} ${actual_rust_ref} {/.}_primers.tmp"
-
-    if ls tmp_${rust}_genes/*_primers.tmp 1> /dev/null 2>&1; then
-        cat tmp_${rust}_genes/*_primers.tmp > ${rust}_primers.csv
-    else
-        touch ${rust}_primers.csv
-    fi
+    source package 999eb878-6c39-444e-a291-e2e0a86660e6 # Load clustalw2 through the prokka package
+    conserved_sites.py ${rust} "${params.outputDir}/blast_results" "${params.outputDir}/genes/${rust}_genes.fna" ${rust}_conserved_sites.fna
     """
 }

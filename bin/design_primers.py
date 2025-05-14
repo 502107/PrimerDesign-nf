@@ -1,4 +1,4 @@
-#!/pythonloc
+#!/hpc-home/vof23jop/mambaforge/envs/nextflow/bin/python
 import os
 import re
 import sys
@@ -17,7 +17,7 @@ def primer3_design(gene_id, sequence):
             'SEQUENCE_INCLUDED_REGION': [0, len(sequence)]
         },
         global_args={
-            'PRIMER_NUM_RETURN': 10000,
+            'PRIMER_NUM_RETURN': 20000,
             'PRIMER_OPT_SIZE': 20,
             'PRIMER_PICK_INTERNAL_OLIGO': 1,
             'PRIMER_INTERNAL_MAX_SELF_END': 8,
@@ -43,7 +43,7 @@ def primer3_design(gene_id, sequence):
 
     return primer3_result
 
-def search_mismatch(primer, sequence, max_mismatch=4, forward=True):
+def search_mismatch(primer, sequence, max_mismatch=3, forward=True):
     """
     Return True if the primer is diverse enough ( at least 1 snp in the last 3bp )
 
@@ -54,18 +54,21 @@ def search_mismatch(primer, sequence, max_mismatch=4, forward=True):
     if primer in sequence: # exact match bad primer
         return False
 
+# Checking half the primer for 2 mismatches [mod:ls120324 -- not in use]
+    half_primer_len = primer_len//2
+
     for i in range(seq_len - primer_len + 1):
         segment = sequence[i:i+primer_len]
         mm = sum(1 for a, b in zip(primer, segment) if a != b)
         if mm < max_mismatch:
             if forward:
                 last_mm = sum(1 for a, b in zip(primer[-3:], segment[-3:]) if a!=b) # found 1 snp window
-            else:
+        else:
                 last_mm = sum(1 for a, b in zip(primer[:3], segment[:3]) if a!=b)
-            if last_mm > 0:
-                return True
-            else:
-                return False
+        if last_mm > 0:
+            return True
+        else:
+            return False
             
     return True
 
@@ -133,13 +136,12 @@ def modify_sequence(ref_fnas, gene_hits):
         
     return modified_sequence
 
-def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, forward=True):
+def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, padding, forward=True):
     valid_primers = []
     sequences = {}
     primer_pairs = []
     all_blast_results = {}
     checked_primers = set()
-    padding_info = {}
     failed_genes = []
     
     # Here we're using the read_blast function to save the blast results
@@ -171,11 +173,15 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             
         sseqid, sstart, send = gene_info
         
-        padding = 500
+        padding = padding
         
-        # Replacing the gene sequence with Ns to avoid creating of primer pairs for the internal regions (+/- 100bp from the ends)
+        # Replacing the gene sequence with Ns to avoid creating of primer pairs for the internal regions (+/- 200bp from the ends)
         new_sequence = ""
-        sequence = sequence[:(padding - 100)] + "N"*((len(sequence) - padding + 100) - (padding - 100)) + sequence[(len(sequence) - (padding - 100)):]
+        if padding > 200:
+            sequence = sequence[:(padding - 200)] + "N"*((len(sequence) - padding + 200) - (padding - 200)) + sequence[(len(sequence) - (padding - 200)):]
+        else:
+            # Keep the first and last quarter of the sequence if no padding
+            sequence = sequence[:(len(sequence)//4)] + "N"*((len(sequence) - (len(sequence)//4)*2)) + sequence[(len(sequence)//4)*3:]
         new_sequence += sequence
         
         primer3_result = primer3_design(gene_id, new_sequence)
@@ -211,8 +217,7 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
                             'PrimerLoc_F': primer_left_pos,
                             'PrimerSeq_R': primer_right_seq,
                             'PrimerLoc_R': primer_right_pos,
-                            'GeneLength_no_padding': len(sequence) - 2*padding,
-                            'GeneLength_with_padding': len(sequence),
+                            'GeneLength': len(sequence),
                             'Primer_coverage': primer_right_pos - primer_left_pos
                         })
                         valid_gene = True
@@ -229,8 +234,7 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
                             'PrimerLoc_F': primer_left_pos,
                             'PrimerSeq_R': primer_right_seq,
                             'PrimerLoc_R': primer_right_pos,
-                            'GeneLength_no_padding': len(sequence) - 2*padding,
-                            'GeneLength_with_padding': len(sequence),
+                            'GeneLength': len(sequence),
                             'Primer_coverage': primer_right_pos - primer_left_pos
                         })
                         valid_gene = True
@@ -248,26 +252,28 @@ def design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out
             'PrimerLoc_F': None,
             'PrimerSeq_R': None,
             'PrimerLoc_R': None,
-            'GeneLength_no_padding': None,
-            'GeneLength_with_padding': None,
+            'GeneLength': None,
             'Primer_coverage': None
         })
     return valid_primers
 
 def main():
     
-    if len(sys.argv) != 9:
-        print("Usage: design_primers.py <rust> <ref_dir> <conserved_sites.fasta> <host_genome.fasta> <blast_output_dir> <rust_all.fna> <output_file.csv> <forward/reverse>")
+    if len(sys.argv) != 10:
+        print(len(sys.argv))
+        print(sys.argv)
+        print("Usage: design_primers.py <single_seq_conserved_sites.fasta> <rust> <ref_dir> <host_genome.fasta> <blast_output_dir> <rust_all.fna> <output_file.csv> <padding> <forward/reverse>")
         sys.exit(1)
 
-    rust = sys.argv[1]
-    ref_dir = sys.argv[2]
-    conserved_sites = sys.argv[3]
+    conserved_sites = sys.argv[1]
+    rust = sys.argv[2]
+    ref_dir = sys.argv[3]
     host_genome = sys.argv[4]
     blast_out = sys.argv[5]
     ref_fnas = sys.argv[6]
     output_file = sys.argv[7]
-    direction = sys.argv[8]
+    padding = int(sys.argv[8])
+    direction = sys.argv[9]
     
     if direction == "forward":
         direction = True
@@ -282,14 +288,12 @@ def main():
     else:
         raise FileNotFoundError("No .gff file found in the specified directory")
 
-    valid_primers = design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, forward=direction)
+    valid_primers = design_primers(rust, conserved_sites, ref_annotation, host_genome, blast_out, ref_fnas, padding, forward=direction)
         
-    
     with open(output_file, 'w') as csvfile:
-        csvfile.write("GeneID,PrimerPair,PrimerSeq_F,PrimerLoc_F,PrimerSeq_R,PrimerLoc_R,GeneLength_no_padding,GeneLength_with_padding,Primer_coverage\n")
+        csvfile.write("GeneID,PrimerPair,PrimerSeq_F,PrimerLoc_F,PrimerSeq_R,PrimerLoc_R,GeneLength,Primer_coverage\n")
         for pair in valid_primers:
-            csvfile.write(f"{pair['GeneID']},{pair['PrimerPair']},{pair['PrimerSeq_F']},{pair['PrimerLoc_F']},{pair['PrimerSeq_R']},{pair['PrimerLoc_R']}, {pair['GeneLength_no_padding']}, {pair['GeneLength_with_padding']}, {pair['Primer_coverage']}\n")
+            csvfile.write(f"{pair['GeneID']},{pair['PrimerPair']},{pair['PrimerSeq_F']},{pair['PrimerLoc_F']},{pair['PrimerSeq_R']},{pair['PrimerLoc_R']},{pair['GeneLength']},{pair['Primer_coverage']}\n")
 
 if __name__ == "__main__":
     main()
-
