@@ -89,32 +89,34 @@ In order to filter out these primers and find the best hits for each of the gene
 - [ ] Add option to handle Pgt genes from CRL75.
 - [X] Streamline installation for users of Mac and Linux.
 - [X] `assets/` directory, with the different isolates is not included due to file size restrictions. Working on a cloud link to download outside of github. This directory looks like this:
-> assets/  
-> └── refs  
->     ├── host  
->     │   └── GCF_018294505.1.fna  
->     ├── pgt210  
->     │   ├── GCA_008522505.1_Pgt_210_genomic.fna  
->     │   └── pgt210_genomic.gff  
->     ├── pgt_all  
->     │   ├── GCA_000149925.1_ASM14992v1_genomic.fna  
->     │   ├── GCA_002762355.2_KSU_Pgt_99KS76A_2.0_genomic.fna  
->     │   ├── GCA_008520325.1_Pgt_Ug99_genomic.fna  
->     │   ├── GCA_008522505.1_Pgt_210_genomic.fna  
->     │   └── GCA_903797515.1_Puccinia_graminis_f._sp._tritici_UK-01_genomic.fna  
->     ├── pgtcrl  
->     │   ├── GCA_000149925.1_ASM14992v1_genomic.fna  
->     │   └── crl75_genomic.gff  
->     ├── pst130  
->     │   ├── Puccinia_striiformis.PST-130_1.0.dna.toplevel.fna 
->     │   └── Puccinia_striiformis.PST-130_1.0.60.gff 
->     └── pst_all  
->         ├── GCA_011750755.1_ASM1175075v1_genomic.fna  
->         ├── GCA_021901695.1_Pst134E36_v1_pri_genomic.fna  
->         ├── GCA_025169535.1_ASM2516953v1_genomic.fna  
->         ├── GCA_025169555.1_ASM2516955v1_genomic.fna  
->         ├── GCA_025869495.1_ASM2586949v1_genomic.fna  
->         └── pst104e.fna  
+```
+ assets/  
+ └── refs  
+     ├── host  
+     │   └── GCF_018294505.1.fna  
+     ├── pgt210  
+     │   ├── GCA_008522505.1_Pgt_210_genomic.fna  
+     │   └── pgt210_genomic.gff  
+     ├── pgt_all  
+     │   ├── GCA_000149925.1_ASM14992v1_genomic.fna  
+     │   ├── GCA_002762355.2_KSU_Pgt_99KS76A_2.0_genomic.fna  
+     │   ├── GCA_008520325.1_Pgt_Ug99_genomic.fna  
+     │   ├── GCA_008522505.1_Pgt_210_genomic.fna  
+     │   └── GCA_903797515.1_Puccinia_graminis_f._sp._tritici_UK-01_genomic.fna  
+     ├── pgtcrl  
+     │   ├── GCA_000149925.1_ASM14992v1_genomic.fna  
+     │   └── crl75_genomic.gff  
+     ├── pst130  
+     │   ├── Puccinia_striiformis.PST-130_1.0.dna.toplevel.fna  
+     │   └── Puccinia_striiformis.PST-130_1.0.60.gff  
+     └── pst_all  
+         ├── GCA_011750755.1_ASM1175075v1_genomic.fna  
+         ├── GCA_021901695.1_Pst134E36_v1_pri_genomic.fna  
+         ├── GCA_025169535.1_ASM2516953v1_genomic.fna  
+         ├── GCA_025169555.1_ASM2516955v1_genomic.fna  
+         ├── GCA_025869495.1_ASM2586949v1_genomic.fna  
+         └── pst104e.fna  
+```
 
 
 [^1]: Pgt reference isolates: GCA_903797515.1_Puccinia_graminis_f._sp._tritici_UK-01, GCA_008522505.1_Pgt_210, GCA_008520325.1_Pgt_Ug99, GCA_002762355.2_KSU_Pgt_99KS76A_2.0, GCA_000149925.1_ASM14992v1.  
