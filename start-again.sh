@@ -1,3 +1,3 @@
 #!/bin/bash
 
-rm -rf *tmp mainPD* data/ work/ .nextflow*
+rm -rf results/ work/ .nextflow*
